@@ -1,0 +1,278 @@
+---
+title: "Model Selection for Antenna Data with Explanations"
+output: 
+  html_document: 
+    highlight: textmate
+    theme: cosmo
+date: '2022-03-25'
+---
+
+
+First we need to upload the data. So:
+```{r}
+df_antenna = read.csv('E:/2022/Freelance/Jobs/001-25/data-antenna.csv', header=T)
+df_antenna = data.frame(time=df_antenna$Time..hours., fails=df_antenna$Number.of.failures)
+```
+
+So we created a new data frame with proper column names. To see what it looks like, we can print the data frame:
+```{r}
+df_antenna
+```
+
+In the second column the number of failures for each time points is recorded. In order to have a complete data set we need to create repetitions of those time points with the frequency of the number of failures.
+Therefore we repeat each time points relative to their respective number of failures.
+
+```{r}
+time_rep = rep(df_antenna$time, df_antenna$fails)
+```
+
+Now we create an empty data frame to hold the information of the distributions that we are going to check. 
+```{r}
+info_df = data.frame(model=NA, method=NA,Log_likelihood=NA, AIC=NA)
+```
+
+In this data frame we have a *model* column which stores the name of the distribution (weibull, gamma, log-normal, beta), a *method* column which stores the method of optimization that is going to be used (mle, mme, qme, mge), and *log-likelihood* and *aic* columns. 
+
+Before doing anything, we need to call a library called *fitdistrplus* that will do this process for us. After that we can start checking different distributions with the `fitdist` function. 
+
+```{r fitdistrplus}
+library(fitdistrplus)
+```
+
+# Weibull Distribution
+## Weibull with mle
+our first method is mle (maximum likelihood estimation):
+```{r}
+fit_wei_mle = fitdist(time_rep, 'weibull', method='mle')
+info_df[1, ] = c('weibull','MLE',fit_wei_mle$loglik, fit_wei_mle$aic)
+```
+
+We can use the `summary()` and `plot()` over this fitted weibull distribution to see its characteristics and how it fits the data using plots.
+
+```{r}
+summary(fit_wei_mle)
+plot(fit_wei_mle)
+```
+
+Now we do the same for all other methods and distributions
+
+## Weibull with mme
+For the moment matching estimation method we need the moment order of the parameters and a moment function and the `actuar` library for the weibull distribution. 
+```{r}
+library(actuar)
+memp <- function(x, order) mean(x^order)
+fit_wei_mme = fitdist(time_rep, 'weibull', method='mme', order=c(1,2), memp=memp)
+summary(fit_wei_mme)
+plot(fit_wei_mme)
+info_df[2, ] = c('weibull','MME',fit_wei_mme$loglik, fit_wei_mme$aic)
+```
+
+For the qme method, we need probabilities to check for their quantiles which is stored in the `probs` argument.
+## Weibull with qme
+```{r}
+fit_wei_qme = fitdist(time_rep, 'weibull', method='qme', probs=c(0.5,0.5))
+summary(fit_wei_qme)
+plot(fit_wei_qme)
+info_df[3, ] = c('weibull','QME',fit_wei_qme$loglik, fit_wei_qme$aic)
+```
+
+For the maximum goodness-of-fit estimation method we need to add the `gof` argument which stores the goodness-of-fit distance.
+## Weibull with gme (KS)
+```{r}
+fit_wei_mge = fitdist(time_rep, 'weibull', method='mge', gof='KS')
+summary(fit_wei_mge)
+plot(fit_wei_mge)
+info_df[4, ] = c('weibull','MGE KS',fit_wei_mge$loglik, fit_wei_mge$aic)
+```
+
+
+## Weibull with gme (CvM)
+```{r}
+fit_wei_mge.2 = fitdist(time_rep, 'weibull', method='mge', gof='CvM')
+summary(fit_wei_mge.2)
+plot(fit_wei_mge.2)
+info_df[5, ] = c('weibull','MGE CvM',fit_wei_mge.2$loglik, fit_wei_mge.2$aic)
+```
+
+
+## Weibull with gme (AD)
+```{r}
+fit_wei_mge.3 = fitdist(time_rep, 'weibull', method='mge', gof='AD')
+summary(fit_wei_mge.3)
+plot(fit_wei_mge.3)
+info_df[6, ] = c('weibull','MGE AD',fit_wei_mge.3$loglik, fit_wei_mge.3$aic)
+```
+
+Now we can do this whole process for the other 3 distributions. 
+
+# Gamma Distribution
+```{r}
+# MLE
+fit_gam_mle = fitdist(time_rep, 'gamma', method='mle')
+summary(fit_gam_mle)
+plot(fit_gam_mle)
+info_df[7, ] = c('gamma','MLE',fit_gam_mle$loglik, fit_gam_mle$aic)
+
+# MME
+fit_gam_mme = fitdist(time_rep, 'gamma', method='mme')
+summary(fit_gam_mme)
+plot(fit_gam_mme)
+info_df[8, ] = c('gamma','MME',fit_gam_mme$loglik, fit_gam_mme$aic)
+
+# QME
+fit_gam_qme = fitdist(time_rep, 'gamma', method='qme', probs=c(0.5,0.5))
+summary(fit_gam_qme)
+plot(fit_gam_qme)
+info_df[9, ] = c('gamma','QME',fit_gam_qme$loglik, fit_gam_qme$aic)
+
+# MGE
+fit_gam_mge = fitdist(time_rep, 'gamma', method='mge', gof='KS')
+summary(fit_gam_mge)
+plot(fit_gam_mge)
+info_df[10, ] = c('gamma','MGE KS',fit_gam_mge$loglik, fit_gam_mge$aic)
+
+fit_gam_mge.3 = fitdist(time_rep, 'gamma', method='mge', gof='AD')
+summary(fit_gam_mge.3)
+plot(fit_gam_mge.3)
+info_df[11, ] = c('gamma','MGE AD',fit_gam_mge.3$loglik, fit_gam_mge.3$aic)
+
+```
+
+The only exception here, is that when we use CvM goodness-of-fit distance it cannot perform the optimization process and returns and error. Therefore it is not mentioned here.
+
+# Log-normal Distribution
+```{r}
+# MLE
+fit_lnorm_mle = fitdist(time_rep, 'lnorm', method='mle')
+summary(fit_lnorm_mle)
+plot(fit_lnorm_mle)
+info_df[12, ] = c('lnorm','MLE',fit_lnorm_mle$loglik, fit_lnorm_mle$aic)
+
+# MME
+fit_lnorm_mme = fitdist(time_rep, 'lnorm', method='mme')
+summary(fit_lnorm_mme)
+plot(fit_lnorm_mme)
+info_df[13, ] = c('lnorm','MME',fit_lnorm_mme$loglik, fit_lnorm_mme$aic)
+
+# QME
+fit_lnorm_qme = fitdist(time_rep, 'lnorm', method='qme', probs=c(0.5,0.5))
+summary(fit_lnorm_qme)
+plot(fit_lnorm_qme)
+info_df[14, ] = c('lnorm','QME',fit_lnorm_qme$loglik, fit_lnorm_qme$aic)
+
+# MGE
+fit_lnorm_mge = fitdist(time_rep, 'lnorm', method='mge', gof='KS')
+summary(fit_lnorm_mge)
+plot(fit_lnorm_mge)
+info_df[15, ] = c('lnorm','MGE KS',fit_lnorm_mge$loglik, fit_lnorm_mge$aic)
+
+fit_lnorm_mge.2 = fitdist(time_rep, 'lnorm', method='mge', gof='CvM') 
+summary(fit_lnorm_mge.2)
+plot(fit_lnorm_mge.2)
+info_df[16, ] = c('lnorm','MGE CvM',fit_lnorm_mge.2$loglik, fit_lnorm_mge.2$aic)
+
+fit_lnorm_mge.3 = fitdist(time_rep, 'lnorm', method='mge', gof='AD')
+summary(fit_lnorm_mge.3)
+plot(fit_lnorm_mge.3)
+info_df[17, ] = c('lnorm','MGE AD',fit_lnorm_mge.3$loglik, fit_lnorm_mge.3$aic)
+```
+
+# Beta Distribution
+For the beta distribution we need to make some adjustments since this distribution needs our data to be within [0-1] interval. We can achieve this by simply dividing our time points to 10000. 
+
+```{r}
+time_rep_beta = time_rep/10000
+```
+
+Now we can check different methods for this distribution. 
+```{r}
+# MLE
+fit_beta_mle = fitdist(time_rep_beta, 'beta', method='mle')
+summary(fit_beta_mle)
+plot(fit_beta_mle)
+info_df[18, ] = c('beta','MLE',fit_beta_mle$loglik, fit_beta_mle$aic)
+
+# MME
+fit_beta_mme = fitdist(time_rep_beta, 'beta', method='mme')
+summary(fit_beta_mme)
+plot(fit_beta_mme)
+info_df[19, ] = c('beta','MME',fit_beta_mme$loglik, fit_beta_mme$aic)
+
+# QME
+fit_beta_qme = fitdist(time_rep_beta, 'beta', method='qme', probs=c(0.5,0.5))
+summary(fit_beta_qme)
+plot(fit_beta_qme)
+info_df[20, ] = c('beta','QME',fit_beta_qme$loglik, fit_beta_qme$aic)
+
+# MGE
+fit_beta_mge = fitdist(time_rep_beta, 'beta', method='mge', gof='KS')
+summary(fit_beta_mge)
+plot(fit_beta_mge)
+info_df[21, ] = c('beta','MGE KS',fit_beta_mge$loglik, fit_beta_mge$aic)
+
+fit_beta_mge.2 = fitdist(time_rep_beta, 'beta', method='mge', gof='CvM') 
+summary(fit_beta_mge.2)
+plot(fit_beta_mge.2)
+info_df[22, ] = c('beta','MGE CvM',fit_beta_mge.2$loglik, fit_beta_mge.2$aic)
+
+fit_beta_mge.3 = fitdist(time_rep_beta, 'beta', method='mge', gof='AD')
+summary(fit_beta_mge.3)
+plot(fit_beta_mge.3)
+info_df[23, ] = c('beta','MGE AD',fit_beta_mge.3$loglik, fit_beta_mge.3$aic)
+```
+
+Now that we have stored all the required information in the `info_df` data frame, we can simply output it to compare different methods and different distributions.
+
+```{r}
+info_df
+```
+
+To interpret the results, We need to find the distribution with highest log-likelihood value and lowest aic value. As you can see, the best distribution is beta with maximum likelihood estimation method. 
+
+Here you can see this distribution fit again which estimates the parameters 
+
+```{r}
+fit_beta_mle
+```
+
+
+The `fitdistrplus` package also has a function called `descdist` that can check different distributions fitness to our data which as you can see gives the same results. 
+
+```{r}
+descdist(time_rep)
+```
+
+
+Therefore our chosen model is the beta distribution with parameters `r fit_beta_mle$estimate[1]` as shape1, and `r fit_beta_mle$estimate[2]` as shape2.
+
+
+## Failure Probability and Reliability
+Failure probability and reliability are complimentary of each other, as $R(t) = 1 - F(t)$. Therefore, 5% failure probability equals 95% reliability and vice versa. In order to find the 5% failure probability we can use the `qbeta` function to find the quantile of the optimal beta distribution that produces 5% failure probability or is reliable 95% of the time.
+
+```{r}
+fail_quant = qbeta(0.05, fit_beta_mle$estimate[1], fit_beta_mle$estimate[2])
+```
+
+Remember that with beta distribution, we divided the time points to 10000. We can now multiply this number to reach the time point that produces 95% reliability. 
+
+Therefore:
+
+```{r}
+fail_quant = fail_quant*10000
+fail_quant
+```
+
+Therefore at `r round(fail_quant,2)` hours, 95% of the systems are still working. 
+
+
+
+
+
+
+
+
+
+
+
+
+
